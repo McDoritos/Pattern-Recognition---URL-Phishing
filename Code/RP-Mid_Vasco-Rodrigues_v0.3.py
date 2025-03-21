@@ -178,19 +178,15 @@ class MahalanobisMinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         self.cov_inv_C2 = None
 
     def fit(self, X, y):
-        # Treinar o classificador
         class_C1 = X[y == 0]
         class_C2 = X[y == 1]
         
-        # Calcular as médias das classes
         self.mean_C1 = np.mean(class_C1, axis=0)
         self.mean_C2 = np.mean(class_C2, axis=0)
         
-        # Calcular as matrizes de covariância e suas inversas
         cov_C1 = np.cov(class_C1, rowvar=False)
         cov_C2 = np.cov(class_C2, rowvar=False)
         
-        # Adicionar uma pequena constante à diagonal para evitar singularidade
         epsilon = 1e-6
         self.cov_inv_C1 = np.linalg.inv(cov_C1 + epsilon * np.eye(cov_C1.shape[0]))
         self.cov_inv_C2 = np.linalg.inv(cov_C2 + epsilon * np.eye(cov_C2.shape[0]))
@@ -198,15 +194,14 @@ class MahalanobisMinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
-        # Fazer previsões
         predictions = []
         for point in X:
             distance_C1 = mahalanobis(point, self.mean_C1, self.cov_inv_C1)
             distance_C2 = mahalanobis(point, self.mean_C2, self.cov_inv_C2)
             if distance_C1 < distance_C2:
-                predictions.append(0)  # Pertence à classe C1
+                predictions.append(0)
             else:
-                predictions.append(1)  # Pertence à classe C2
+                predictions.append(1)
         return np.array(predictions)
 
 class MinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
@@ -215,7 +210,6 @@ class MinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         self.mean_C2 = None
 
     def fit(self, X, y):
-        # Treinar o classificador
         class_C1 = X[y == 0]
         class_C2 = X[y == 1]
         self.mean_C1 = np.mean(class_C1, axis=0)
@@ -223,15 +217,14 @@ class MinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
-        # Fazer previsões
         predictions = []
         for point in X:
             distance_C1 = np.linalg.norm(point - self.mean_C1)
             distance_C2 = np.linalg.norm(point - self.mean_C2)
             if distance_C1 < distance_C2:
-                predictions.append(0)  # Pertence à classe C1
+                predictions.append(0)
             else:
-                predictions.append(1)  # Pertence à classe C2
+                predictions.append(1)
         return np.array(predictions)
 
 def cross_validate_fld(X, T, cv=5):
