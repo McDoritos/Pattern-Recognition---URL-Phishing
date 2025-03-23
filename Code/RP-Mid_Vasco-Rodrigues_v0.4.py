@@ -9,12 +9,15 @@ from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
 from scipy.spatial.distance import mahalanobis
+import seaborn as sns
 
 def MainMenu():
     print("----------Main Menu----------")
     print("1 - Minimum Distance Classifier - Euclidean\n"
     "2 - Minimum Distance Classifier - Mahalanobis\n"
     "3 - Fisher LDA\n"
+    "4 - Visualize kruskal wallis\n"
+    "5 - Visualize correlation matrix\n"
     "0 - Exit")
 
 def MainMenuOptions(option, X, T):
@@ -71,15 +74,38 @@ def MainMenuOptions(option, X, T):
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+    elif option == "4":
+        x = normalize_data(X)
+
+        h_statistics = {}
+        p_values = {}
+        for column in range(x.shape[1]):
+            grouped_data = [x[T == group, column] for group in np.unique(T)]
+            h_stat, p_value = kruskal(*grouped_data)
+            h_statistics[column] = h_stat
+            p_values[column] = p_value
+
+        plot_kruskal_results(x, T, h_statistics)
+    elif option == "5":
+        n_features = X.shape[1]
+        x_df = pd.DataFrame(X, columns=[f"Feature {i}" for i in range(n_features)])
+
+        corr_matrix = x_df.corr()
+
+        plt.figure(figsize=(12, 10))
+        sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", vmin=-1, vmax=1)
+        plt.title("Matriz de Correlação")
+        plt.show()
     elif option == "0":
         print("Exiting...")
     else:
         print("Invalid Option")
+    
 
 def chooseNormalize(x):
     optionNormalized = input("Do you want the data to be normalized? (y/n): ")
     if optionNormalized == "y":
-        x = normalize_data(X, method='z-score')
+        x = normalize_data(x, method='z-score')
         print("Data normalized")
     elif optionNormalized == "n":
         print("Data not normalized")
@@ -116,6 +142,30 @@ def chooseKruskal(x):
             print("Invalid option. By default, Kruskal-Wallis test won't be performed.")
     
     return x
+
+def plot_kruskal_results(x, T, h_statistics):
+    ranked_features = sorted(h_statistics.items(), key=lambda x: x[1], reverse=True)
+    
+    print("\nFeatures ranked by Kruskal-Wallis H statistic:")
+    for feature, h_stat in ranked_features:
+        print(f"Feature {feature}: H = {h_stat:.4f}")
+    
+    n_features = x.shape[1]
+    
+    n_cols = 6 
+    n_rows = (n_features + n_cols - 1) // n_cols
+
+    plt.figure(figsize=(20, 3 * n_rows)) 
+    
+    for i, (feature, h_stat) in enumerate(ranked_features):
+        plt.subplot(n_rows, n_cols, i + 1)
+        sns.violinplot(x=T, y=x[:, feature], legend=False) 
+        plt.title(f"Feature {feature}")
+        plt.xlabel("")
+        plt.ylabel("")
+    plt.tight_layout()
+    plt.show()
+
 
 def choosePCA(x):
     optionPca = input("Do you want to apply PCA? (y/n): ")
@@ -334,7 +384,7 @@ D = df.values
 X = D[:, 0:54]
 T = D[:,55]
 
-col_remove = [0, 1, 3, 6, 25, 28, 29, 32, 33, 34, 37, 40, 41, 42, 43, 44, 45, 46, 47, 48]
+col_remove = [0, 1, 3, 6, 16, 18, 20, 25, 28, 29, 31, 32, 33, 34, 37, 40, 41, 42, 43, 44, 45, 46, 47, 48]
 X = np.delete(X, col_remove, axis=1)
 
 option = -1
