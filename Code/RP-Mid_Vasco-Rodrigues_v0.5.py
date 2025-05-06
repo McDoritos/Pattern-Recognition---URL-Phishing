@@ -5,12 +5,12 @@ from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from scipy.stats import kruskal
-from sklearn.model_selection import cross_val_score, StratifiedKFold, train_test_split
+from sklearn.model_selection import cross_val_score, StratifiedKFold, train_test_split, GridSearchCV
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
 from scipy.spatial.distance import mahalanobis
 import seaborn as sns
-from sklearn import mixture
+from sklearn import mixture, svm
 from sklearn.neighbors import KNeighborsClassifier
 from tqdm import tqdm
 
@@ -21,9 +21,11 @@ def MainMenu():
     "3 - Fisher LDA\n"
     "4 - Bayes Classifier\n"
     "5 - KNN Classifier\n"
-    "6 - Choose best K for KNN\n"
-    "7 - Visualize kruskal wallis\n"
-    "8 - Visualize correlation matrix\n"
+    "6 - SVM Classifier\n"
+    "7 - Grid Search C (SVM)"
+    "8 - Choose best K for KNN\n"
+    "9 - Visualize kruskal wallis\n"
+    "10 - Visualize correlation matrix\n"
     "0 - Exit")
 
 def MainMenuOptions(option, X, T):
@@ -119,6 +121,57 @@ def MainMenuOptions(option, X, T):
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
     elif option == "6":
+        x_svm = X.copy()
+
+        x_svm = chooseNormalize(x_svm,force=True)
+
+        x_svm = chooseKruskal(x_svm)
+
+        x_svm = choosePCA(x_svm)
+
+        print("Calculating predictions...")
+        classifier = chooseKernelSVM()
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1 = cross_validate_model(x_svm, T, classifier, cv=5)
+
+        print("\nMetrics\n")
+        print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
+        print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
+        print(f"Specificity: {mean_specificity:.4f}")
+        print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+    elif option == "7":
+        C_range = [2**i for i in range(-5, 13)]
+        gamma_range = [2**i for i in range(-30, 6)]
+
+        param_grid = {'C': C_range, 'gamma': gamma_range}
+        n_repeats = 10
+        mean_scores = np.zeros((len(gamma_range), len(C_range)))
+
+        for _ in range(n_repeats):
+            X_train, X_test, T_train, T_test = train_test_split(X, T, test_size=0.5, random_state=None)
+            
+            grid = GridSearchCV(svm.SVC(kernel='rbf'), param_grid, cv=5, scoring='accuracy')
+            grid.fit(X_train, T_train)
+            
+            # Armazena os resultados
+            for i, gamma in enumerate(gamma_range):
+                for j, C in enumerate(C_range):
+                    mean_scores[i, j] += 1 - grid.cv_results_['mean_test_score'][grid.cv_results_['params'].index({'C': C, 'gamma': gamma})]
+
+        # Média dos erros após 10 repetições
+        mean_scores /= n_repeats
+
+        # Melhores parâmetros
+        best_idx = np.unravel_index(np.argmin(mean_scores), mean_scores.shape)
+        best_C = C_range[best_idx[1]]
+        best_gamma = gamma_range[best_idx[0]]
+        best_error = mean_scores[best_idx]
+
+        print("Best value for C: ",best_C)
+        print("Best value for gamma: ",best_C)
+        print("Best value for C: ",best_C)
+
+    elif option == "8":
         x_knn = X.copy()
 
         x_knn = chooseNormalize(x_knn,force=True)
@@ -153,7 +206,7 @@ def MainMenuOptions(option, X, T):
 
         best_k = k_values[np.argmin(mean_errors)]
         print(f"Optimal number of neighbors (based on error): k = {best_k}")
-    elif option == "7":
+    elif option == "9":
         x = normalize_data(X)
 
         h_statistics = {}
@@ -165,7 +218,7 @@ def MainMenuOptions(option, X, T):
             p_values[column] = p_value
 
         plot_kruskal_results(x, T, h_statistics)
-    elif option == "8":
+    elif option == "10":
         n_features = X.shape[1]
         x_df = pd.DataFrame(X, columns=[f"Feature {i}" for i in range(n_features)])
 
@@ -270,6 +323,16 @@ def choosePCA(x):
         print("PCA not applied")
     
     return x
+
+def chooseKernelSVM():
+    optionSvm = input("Do you want a linear or non-linear kernel? (1/2): ")
+    if optionSvm == "1":
+        classifier = svm.SVC(kernel='linear', C=0.0028705751802257785) # DO GRID SEARCH FOR C
+    else:
+        classifier = svm.SVC(kernel='rbf') 
+    
+    return classifier
+        
 
 def cross_validate_model(X, T, classifier, cv=5):
     T = T.astype(int)
