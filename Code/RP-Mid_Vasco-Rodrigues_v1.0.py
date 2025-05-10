@@ -42,13 +42,15 @@ def MainMenuOptions(option, X, T):
 
         print("Calculating predictions with cross-validation...")
         classifier = MinimumDistanceClassifier()
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _ = cross_validate_model(x_mdce, T, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_mdce, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
     elif option =="2":
         x_mdcm = X.copy()
 
@@ -60,13 +62,15 @@ def MainMenuOptions(option, X, T):
 
         print("Calculating predictions with cross-validation...")
         classifier = MahalanobisMinimumDistanceClassifier()
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _ = cross_validate_model(x_mdcm, T, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_mdcm, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
     elif option == "3":
         x_fisher = X.copy()
 
@@ -77,13 +81,16 @@ def MainMenuOptions(option, X, T):
         x_fisher = choosePCA(x_fisher)
 
         print("Calculating predictions...")
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1 = cross_validate_fld(x_fisher, T, cv=5)
+        classifier = LDA()
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_fisher, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
     elif option == "4":
         x_bayes = X.copy()
 
@@ -95,13 +102,15 @@ def MainMenuOptions(option, X, T):
 
         print("Calculating predictions...")
         classifier = BayesClassifier()
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _ = cross_validate_model(x_bayes, T, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_bayes, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
 
     elif option == "5":
         x_knn = X.copy()
@@ -114,13 +123,15 @@ def MainMenuOptions(option, X, T):
 
         print("Calculating predictions...")
         classifier = KNeighborsClassifier(n_neighbors=3)
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _ = cross_validate_model(x_knn, T, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_knn, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
 
     elif option == "6":
         x_svm = X.copy()
@@ -133,14 +144,15 @@ def MainMenuOptions(option, X, T):
 
         print("Calculating predictions...")
         classifier = chooseKernelSVM()
-
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _ = cross_validate_model(x_svm, T, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_svm, T, classifier, cv=5)
 
         print("\nMetrics\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
+
+        plot_ROC(fpr, tpr)
 
     elif option == "7":
 
@@ -153,7 +165,7 @@ def MainMenuOptions(option, X, T):
         print("Calculating predictions...")
         classifier = chooseKernelSVM(force_linear=True)
 
-        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, classifier = cross_validate_model(x_best_model, T_train, classifier, cv=5)
+        mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, classifier, fpr, tpr = cross_validate_model(x_best_model, T_train, classifier, cv=5)
         print("\nMetrics on trainig data\n")
         print(f"Mean accuracy (cross-validation): {mean_accuracy:.4f}")
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
@@ -486,7 +498,8 @@ def cross_validate_model(X, T, classifier, cv=5):
     T = T.astype(int)
     
     accuracies, sensitivities, specificities, f1_scores = [], [], [], []
-    
+    all_fpr, all_tpr = [], []
+
     skf = StratifiedKFold(n_splits=cv)
     
     fold_iter = tqdm(skf.split(X, T), 
@@ -499,8 +512,17 @@ def cross_validate_model(X, T, classifier, cv=5):
         T_train, T_test = T[train_index], T[test_index]
         
         classifier.fit(X_train, T_train)
+
+        if hasattr(classifier, "decision_function"):
+            y_scores = classifier.decision_function(X_test)
+        elif hasattr(classifier, "predict_proba"):
+            y_scores = classifier.predict_proba(X_test)[:, 1]
+
+        fpr, tpr, _ = roc_curve(T_test, y_scores)
+        all_fpr.append(fpr)
+        all_tpr.append(tpr)
+
         predictions = classifier.predict(X_test)
-        
         accuracy, sensitivity, specificity, f1 = calculate_metrics(T_test, predictions)
         
         accuracies.append(accuracy)
@@ -521,7 +543,7 @@ def cross_validate_model(X, T, classifier, cv=5):
     mean_specificity = np.mean(specificities)
     mean_f1 = np.mean(f1_scores)
     
-    return mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, classifier
+    return mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, classifier, all_fpr, all_tpr
 
 def euclidean_distance(point1, point2):
     return np.sqrt(np.sum((point1 - point2) ** 2))
@@ -543,22 +565,21 @@ class MahalanobisMinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         cov_C1 = np.cov(class_C1, rowvar=False)
         cov_C2 = np.cov(class_C2, rowvar=False)
         
-        epsilon = 1e-6
+        epsilon = 1e-6  # Evita matriz singular
         self.cov_inv_C1 = np.linalg.inv(cov_C1 + epsilon * np.eye(cov_C1.shape[0]))
         self.cov_inv_C2 = np.linalg.inv(cov_C2 + epsilon * np.eye(cov_C2.shape[0]))
         
         return self
 
     def predict(self, X):
-        predictions = []
-        for point in X:
-            distance_C1 = mahalanobis(point, self.mean_C1, self.cov_inv_C1)
-            distance_C2 = mahalanobis(point, self.mean_C2, self.cov_inv_C2)
-            if distance_C1 < distance_C2:
-                predictions.append(0)
-            else:
-                predictions.append(1)
-        return np.array(predictions)
+        return np.where(self.decision_function(X) < 0, 0, 1)
+
+    def decision_function(self, X):
+
+        distances_C1 = np.array([mahalanobis(x, self.mean_C1, self.cov_inv_C1) for x in X])
+        distances_C2 = np.array([mahalanobis(x, self.mean_C2, self.cov_inv_C2) for x in X])
+        
+        return distances_C1 - distances_C2
 
 class MinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self):
@@ -573,49 +594,12 @@ class MinimumDistanceClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
-        predictions = []
-        for point in X:
-            distance_C1 = np.linalg.norm(point - self.mean_C1)
-            distance_C2 = np.linalg.norm(point - self.mean_C2)
-            if distance_C1 < distance_C2:
-                predictions.append(0)
-            else:
-                predictions.append(1)
-        return np.array(predictions)
+        return np.where(self.decision_function(X) < 0, 0, 1)
 
-def cross_validate_fld(X, T, cv=5):
-    T = T.astype(int)
-    
-    unique_labels = np.unique(T)
-    if len(unique_labels) != 2:
-        raise ValueError("O FLD requer exatamente duas classes. Verifique os rótulos.")
-    
-    accuracies, sensitivities, specificities, f1_scores = [], [], [], []
-    
-    skf = StratifiedKFold(n_splits=cv)
-    
-    for train_index, test_index in skf.split(X, T):
-        X_train, X_test = X[train_index], X[test_index]
-        T_train, T_test = T[train_index], T[test_index]
-        
-        lda = LDA()
-        lda.fit(X_train, T_train)
-        
-        predictions = lda.predict(X_test)
-        
-        accuracy, sensitivity, specificity, f1 = calculate_metrics(T_test, predictions)
-        
-        accuracies.append(accuracy)
-        sensitivities.append(sensitivity)
-        specificities.append(specificity)
-        f1_scores.append(f1)
-    
-    mean_accuracy = np.mean(accuracies)
-    mean_sensitivity = np.mean(sensitivities)
-    mean_specificity = np.mean(specificities)
-    mean_f1 = np.mean(f1_scores)
-    
-    return mean_accuracy, mean_sensitivity, mean_specificity, mean_f1
+    def decision_function(self, X):
+        distances_C1 = np.linalg.norm(X - self.mean_C1, axis=1)
+        distances_C2 = np.linalg.norm(X - self.mean_C2, axis=1)
+        return distances_C1 - distances_C2
 
 class BayesClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self):
@@ -625,6 +609,7 @@ class BayesClassifier(BaseEstimator, ClassifierMixin):
         self.cov2 = None
         self.Pw1 = None
         self.Pw2 = None
+        self.epsilon = 1e-10
 
     def pdfGauss(self, x, mean, cov):
         covInv = np.linalg.inv(cov)
@@ -664,6 +649,18 @@ class BayesClassifier(BaseEstimator, ClassifierMixin):
         
         predictions = ((-np.sign(Pw1X - Pw2X)) * 0.5 + 1.5).squeeze()
         return np.where(predictions > 1, 1, 0).astype(int)
+    
+    def predict_proba(self, xtest):
+        """Only used for ROC Curve"""
+        Pw1X = self.pdfGauss(xtest, self.mean1, self.cov1) * self.Pw1
+        Pw2X = self.pdfGauss(xtest, self.mean2, self.cov2) * self.Pw2
+        
+        # Adds epsilon to avoid zero division
+        total = Pw1X + Pw2X + 2*self.epsilon
+        proba1 = (Pw1X + self.epsilon) / total
+        proba2 = (Pw2X + self.epsilon) / total
+        
+        return np.hstack([proba1, proba2])
 
 class KNNClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self):
@@ -742,6 +739,40 @@ def calculate_metrics(y_true, y_pred):
     f1 = f1_score(y_true, y_pred)
     
     return accuracy, sensitivity, specificity, f1
+
+def plot_ROC(all_fpr, all_tpr):
+    mean_fpr = np.linspace(0, 1, 100)
+    tprs = []
+    
+    for fpr, tpr in zip(all_fpr, all_tpr):
+        interp_tpr = np.interp(mean_fpr, fpr, tpr)
+        tprs.append(interp_tpr)
+    
+    mean_tpr = np.mean(tprs, axis=0)
+    std_tpr = np.std(tprs, axis=0)
+    
+    mean_auc = np.trapz(mean_tpr, mean_fpr)
+    
+    plt.figure(figsize=(8, 6))
+    plt.plot(mean_fpr, mean_tpr, color='b', 
+             label=f'Mean ROC (AUC = {mean_auc:.2f})', lw=2)
+    
+    plt.fill_between(mean_fpr, 
+                     mean_tpr - std_tpr, 
+                     mean_tpr + std_tpr, 
+                     color='grey', alpha=0.2,
+                     label='±1 std. dev.')
+    
+    plt.plot([0, 1], [0, 1], 'k--', label='Random Classifier')
+    
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate (1 - Specificity)')
+    plt.ylabel('True Positive Rate (Sensitivity)')
+    plt.title('Mean ROC Curve (Cross-Validation)')
+    plt.legend(loc='lower right')
+    plt.grid(True)
+    plt.show()
 
 df = pd.read_csv('PhiUSIIL_Phishing_URL_Dataset.csv')
 D = df.values
