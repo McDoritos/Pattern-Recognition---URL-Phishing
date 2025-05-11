@@ -7,7 +7,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from scipy.stats import kruskal
 from sklearn.model_selection import cross_val_score, StratifiedKFold,RepeatedStratifiedKFold, train_test_split, GridSearchCV
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, auc, recall_score, precision_score, f1_score, confusion_matrix
 from scipy.spatial.distance import mahalanobis
 import seaborn as sns
 from sklearn import mixture, svm
@@ -27,7 +27,8 @@ def MainMenu():
     "8 - Grid Search C (SVM)\n"
     "9 - Choose best K for KNN\n"
     "10 - Visualize kruskal wallis\n"
-    "11 - Visualize correlation matrix\n"
+    "11 - Visualize correlation matrix\n" \
+    "12 - Visualize ROC Curve scores\n"
     "0 - Exit")
 
 def MainMenuOptions(option, X, T):
@@ -50,7 +51,7 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
-        plot_ROC(fpr, tpr)
+        plot_ROC(fpr, tpr,'MDC-EDD')
     elif option =="2":
         x_mdcm = X.copy()
 
@@ -70,7 +71,7 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
-        plot_ROC(fpr, tpr)
+        plot_ROC(fpr, tpr,'MDC-MDD')
     elif option == "3":
         x_fisher = X.copy()
 
@@ -90,7 +91,7 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
-        plot_ROC(fpr, tpr)
+        plot_ROC(fpr, tpr,'Fisher LDA')
     elif option == "4":
         x_bayes = X.copy()
 
@@ -110,7 +111,7 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
-        plot_ROC(fpr, tpr)
+        plot_ROC(fpr, tpr,'Bayes Classifier')
 
     elif option == "5":
         x_knn = X.copy()
@@ -131,7 +132,7 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
 
-        plot_ROC(fpr, tpr)
+        plot_ROC(fpr, tpr,'k-NN')
 
     elif option == "6":
         x_svm = X.copy()
@@ -143,7 +144,7 @@ def MainMenuOptions(option, X, T):
         x_svm = choosePCA(x_svm)
 
         print("Calculating predictions...")
-        classifier = chooseKernelSVM()
+        classifier,kernel = chooseKernelSVM()
         mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, _, fpr, tpr = cross_validate_model(x_svm, T, classifier, cv=5)
 
         print("\nMetrics\n")
@@ -151,8 +152,8 @@ def MainMenuOptions(option, X, T):
         print(f"Sensitivity (Recall): {mean_sensitivity:.4f}")
         print(f"Specificity: {mean_specificity:.4f}")
         print(f"F-measure (F1-score): {mean_f1:.4f}")
-
-        plot_ROC(fpr, tpr)
+        title = "SVM - " + kernel
+        plot_ROC(fpr, tpr,title)
 
     elif option == "7":
 
@@ -163,7 +164,7 @@ def MainMenuOptions(option, X, T):
         x_best_model = chooseNormalize(x_best_model,force=True)
 
         print("Calculating predictions...")
-        classifier = chooseKernelSVM(force_linear=True)
+        classifier,kernel = chooseKernelSVM(force_linear=True)
 
         mean_accuracy, mean_sensitivity, mean_specificity, mean_f1, classifier, fpr, tpr = cross_validate_model(x_best_model, T_train, classifier, cv=5)
         print("\nMetrics on trainig data\n")
@@ -187,6 +188,8 @@ def MainMenuOptions(option, X, T):
         print(f"Specificity: {specificity:.4f}")
         print(f"F-measure (F1-score): {f1:.4f}")
 
+        title = "SVM - " + kernel
+        plot_ROC_validation(classifier, X_test, T_test, kernel)
     elif option == "8":
 
         optionSVM = input("Do you want to test for linear or rbf? (0/1): ")
@@ -232,7 +235,6 @@ def MainMenuOptions(option, X, T):
         mean_scores /= n_repeats
 
         if optionSVM == "0":
-            # Resultados para SVM linear
             best_idx = np.argmin(mean_scores)
             best_C = C_range[best_idx]
             best_error = mean_scores[best_idx]
@@ -241,7 +243,6 @@ def MainMenuOptions(option, X, T):
             print(f"Best C: {best_C:.6f}")
             print(f"Best error: {best_error:.6f}")
             
-            # Plot para linear (apenas C)
             plt.figure(figsize=(10, 6))
             plt.plot(np.log2(C_range), mean_scores, 'b-o')
             plt.scatter(np.log2(best_C), best_error, color='red', s=100, label=f'Best C=2^{np.log2(best_C):.0f}')
@@ -253,7 +254,6 @@ def MainMenuOptions(option, X, T):
             plt.show()
     
         else:
-            # Resultados para SVM RBF
             best_idx = np.unravel_index(np.argmin(mean_scores), mean_scores.shape)
             best_C = C_range[best_idx[1]]
             best_gamma = gamma_range[best_idx[0]]
@@ -264,7 +264,6 @@ def MainMenuOptions(option, X, T):
             print(f"Best gamma: {best_gamma:.6f}")
             print(f"Best error: {best_error:.6f}")
             
-            # Plot 3D para RBF
             C_log = np.log2(C_range)
             gamma_log = np.log2(gamma_range)
             C_grid, gamma_grid = np.meshgrid(C_log, gamma_log)
@@ -339,6 +338,9 @@ def MainMenuOptions(option, X, T):
         sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", vmin=-1, vmax=1)
         plt.title("Matriz de Correlação")
         plt.show()
+    elif option == "12":
+        t = T.astype(int)
+        plot_all_roc_curves(X,t)
     elif option == "0":
         print("Exiting...")
     else:
@@ -361,14 +363,14 @@ def chooseNormalize(x, force=False):
 
     return x
 
-def chooseFeatureReduction(x):
+def chooseFeatureReduction(x,t=None):
     option = input("Do you want to use for feature reduction?(0/1)")
     if option == "1":
         option_feature_reduction = input("Kruskal wallis or ROC? (0/1)")
         if option_feature_reduction == "0":
-            return chooseKruskal(x)
+            return chooseKruskal(x,t)
         elif option_feature_reduction == "1":
-            return chooseROCFeatureReduction(x)
+            return chooseROCFeatureReduction(x,t)
         else:
             print("Invalid option, not applying feature reduction")
             return x
@@ -433,6 +435,31 @@ def chooseROCFeatureReduction(x,t=None):
     print(f"\nSelected features: {selected_features}")
     return x_selected
 
+def plot_all_roc_curves(x, t):
+    plt.figure(figsize=(12, 8))
+    plt.plot([0, 1], [0, 1], 'k--', label='Classificador Aleatório (AUC = 0.5)')
+    
+    auc_scores = {}
+    
+    for col in range(x.shape[1]):
+        fpr, tpr, _ = roc_curve(t, x[:, col])
+        auc = roc_auc_score(t, x[:, col])
+        auc_scores[col] = auc
+        
+        plt.plot(fpr, tpr, alpha=0.7, 
+                label=f'Feature {col} (AUC = {auc:.3f})')
+
+    plt.xlabel('FPR', fontsize=12)
+    plt.ylabel('TPR', fontsize=12)
+    plt.title('ROC Curve of features', fontsize=14)
+    
+    if x.shape[1] <= 20:
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
 def plot_kruskal_results(x, T, h_statistics):
     ranked_features = sorted(h_statistics.items(), key=lambda x: x[1], reverse=True)
     
@@ -479,19 +506,23 @@ def choosePCA(x):
     return x
 
 def chooseKernelSVM(force_linear=False):
+    kernel = None
     if force_linear:
         print("Using best model - svm with linear kernel...")
         classifier = svm.SVC(kernel='linear', C=16)
+        kernel = "Linear"
     else:
         optionSvm = input("Do you want a linear or non-linear kernel? (1/2): ")
         if optionSvm == "1":
             print("Using svm with linear kernel...")
             classifier = svm.SVC(kernel='linear', C=16) # DO GRID SEARCH FOR C
+            kernel = "Linear"
         else:
             print("Using svm with Non-linear kernel...")
-            classifier = svm.SVC(kernel='rbf', C=4096, gamma=0.000977) 
+            classifier = svm.SVC(kernel='rbf', C=1024, gamma=0.0016) 
+            kernel = "RBF"
     
-    return classifier
+    return classifier, kernel
         
 
 def cross_validate_model(X, T, classifier, cv=5):
@@ -740,7 +771,7 @@ def calculate_metrics(y_true, y_pred):
     
     return accuracy, sensitivity, specificity, f1
 
-def plot_ROC(all_fpr, all_tpr):
+def plot_ROC(all_fpr, all_tpr, classifier):
     mean_fpr = np.linspace(0, 1, 100)
     tprs = []
     
@@ -769,8 +800,31 @@ def plot_ROC(all_fpr, all_tpr):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate (1 - Specificity)')
     plt.ylabel('True Positive Rate (Sensitivity)')
-    plt.title('Mean ROC Curve (Cross-Validation)')
+    plt.title(f'Mean ROC Curve ({classifier})')
     plt.legend(loc='lower right')
+    plt.grid(True)
+    plt.show()
+
+def plot_ROC_validation(classifier, X_test, T_test, kernel):
+    if hasattr(classifier, "predict_proba"):
+        y_scores = classifier.predict_proba(X_test)[:, 1]
+    else:
+        y_scores = classifier.decision_function(X_test)
+    
+    fpr, tpr, _ = roc_curve(T_test, y_scores)
+    roc_auc = auc(fpr, tpr)
+    
+    # Plotar
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='blue',
+             lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'ROC Curve on Validation Data ({kernel} SVM)')
+    plt.legend(loc="lower right")
     plt.grid(True)
     plt.show()
 
